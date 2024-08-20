@@ -1,0 +1,24 @@
+[core]
+ excludesFile = ~/.gitignore
+[user]
+ email = root@localhost
+ name = root
+ signingkey = ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBkmQtd5gEcDffbVVJDPy+23NTGI+6tDnafk7N1l1dfB dmisu-ed25519-main
+[push]
+ # https://stackoverflow.com/questions/820178
+ default = current
+[pull]
+ rebase = true
+[commit]
+ gpgsign = true
+[tag]
+ gpgSign = true
+[log]
+ showSignature = false
+[color]
+ ui = always
+ status = always
+[pager]
+ status = true
+[gpg]
+ format = ssh
