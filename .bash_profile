@@ -29,7 +29,7 @@ scrrr() {
 
 tmx() {
  set_mux_env
- /usr/bin/env tmux new-session -AD -s ${USER}-0
+ /usr/bin/env tmux -u new-session -AD -s ${USER}-0
  exit
 }
 
