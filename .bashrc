@@ -83,11 +83,14 @@ pbrewrc="${PERLBREW_ROOT}/etc/bashrc"
 test -f "$pbrewrc" && source "$pbrewrc"
 umask 0022
 
-# disable history purging
+# disable history purging:
 export HISTSIZE=
 export HISTFILESIZE=
 export HISTTIMEFORMAT='[%F %T] '
 export HISTCONTROL=ignoredups:ignorespace
+
+# force set terminal:
+export TERM=tmux
 
 # append to the history file, don't overwrite it:
 shopt -s histappend
