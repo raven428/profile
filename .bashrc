@@ -89,8 +89,10 @@ export HISTFILESIZE=
 export HISTTIMEFORMAT='[%F %T] '
 export HISTCONTROL=ignoredups:ignorespace
 
-# force set terminal:
-export TERM=tmux
+# force set terminal inside tmux
+if [[ -n "$TMUX" ]]; then
+ export TERM=tmux
+fi
 
 # append to the history file, don't overwrite it:
 shopt -s histappend
