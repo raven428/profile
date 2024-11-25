@@ -89,9 +89,19 @@ export HISTFILESIZE=
 export HISTTIMEFORMAT='[%F %T] '
 export HISTCONTROL=ignoredups:ignorespace
 
-# force set terminal inside tmux
+if [[ -x $(which tic) ]]; then
+ /usr/bin/env tic -x - <<EOF
+xterm-256color|true color terminal,
+ use=xterm-256color,
+ kend=\E[4~,khome=\E[1~,
+ RGB,
+ Tc,
+EOF
+fi
+
+# force set tmux terminal
 if [[ -n "$TMUX" ]]; then
- export TERM=tmux
+ export TERM='xterm-256color'
 fi
 
 # append to the history file, don't overwrite it:
