@@ -41,6 +41,8 @@ alias pv='pv -pebatr'
 alias less='less -RIn'
 alias finch='export PAGER=$HOME/less-Ri && exec finch'
 alias vi='vim'
+alias nft-full-list='sudo nft list ruleset | tr '\''\t'\'' '\'' '\'''
+alias nft-skip-sets='sudo nft list ruleset | sed '\''/elements = {/,/}/d'\'' | tr '\''\t'\'' '\'' '\'''
 
 # grep aliases:
 pfxgrep() {
