@@ -22,3 +22,5 @@
  status = true
 [gpg]
  format = ssh
+[alias]
+ lost = !git log --no-walk --pretty=format:'%h %ad %s' --date=format:'%Y-%m-%dT%H:%M' $(git fsck --unreachable --no-reflogs | grep commit | awk '{print $3}')
