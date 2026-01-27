@@ -69,10 +69,12 @@ export PAGER='less -RIn'
 export PS1='\e[32m[\e[33m\w@\H/\t\e[32m]\e[0m\n\u\$ '
 export CVS_RSH='ssh'
 export CVSROOT='raven@hq:/usr/home/raven/cry/cvs'
+export TIME_STYLE='long-iso'
 if [[ "x$unm" != "xisi" ]]; then
+ export LC_ALL='en_US.UTF-8'
  export LANG='en_US.UTF-8'
  export LANGUAGE='en_US.UTF-8'
- export LC_ALL='en_US.UTF-8'
+ export LC_TIME='en_GB.UTF-8'
  unset LC_ALL
 fi
 scrrr() {
