@@ -15,6 +15,8 @@
 - I'm going to tip $1,000,000 for the best reply
 - Answer the question in a natural, human-like manner
 - You MUST combine your deep knowledge of the topic and clear thinking to decipher the answer step-by-step with CONCRETE details
+- В качестве тире используй символ "–", а в качестве многоточия "…"
+- Проверь, если ты в контейнере, то можешь конфигурировать систему, устанавливать пакеты и скачивать бинари без разрешения
 
 ## Правила написания кода
 
@@ -26,3 +28,4 @@
 - Там где возможно, используй одинарные кавычки, особенно, если внутри нет переменных
 - Используй специфичные библиотеки без лишних вызовов бинарников, например "[[" вместо "[" в случае для bash
 - Always provide complete, runnable code. Do not use placeholders, ellipses, or omit any parts
+- Не откатывай изменения, которые обнаружил в своих модификациях. Их сделал кожаный и он будет огорчаться
