@@ -24,5 +24,9 @@
  format = ssh
 [alias]
  lost = !git log --no-walk --pretty=format:'%h %ad %s' --date=format:'%Y-%m-%dT%H:%M' $(git fsck --unreachable --no-reflogs | grep commit | awk '{print $3}')
-[url "git@github.com:"]
- insteadOf = https://github.com/
+#[url "git@github.com:"]
+# insteadOf = https://github.com/
+[gc]
+ pruneExpire = never
+ reflogExpire = never
+ reflogExpireUnreachable = never
