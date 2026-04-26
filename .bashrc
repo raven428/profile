@@ -66,7 +66,7 @@ done
 export COLORTERM=1
 export EDITOR='vim'
 export PAGER='less -RIn'
-export PS1='\e[32m[\e[33m\w@\H/\t\e[32m]\e[0m\n\u\$ '
+export PS1='\e[32m[\e[33m\w@\H/\t\e[32m]\e[0m\n\u\$ \[\033[2 q\]'
 export CVS_RSH='ssh'
 export CVSROOT='raven@hq:/usr/home/raven/cry/cvs'
 export TIME_STYLE='long-iso'
@@ -129,9 +129,9 @@ if [[ "x${TERM}" = "xscreen" ]]; then
  PROMPT_COMMAND+='; /usr/bin/env printf "\033k%s@%s\033\\" "${USER}" "${PWD}"'
 fi
 
-# https://github.com/tmux/tmux/issues/2682
-# avoid blinking cursor in tmux with kitty:
-PROMPT_COMMAND+='; /usr/bin/env printf '\''\033[2 q'\'''
+# https://github.com/tmux/tmux/issues/2682 avoid blinking cursor in tmux with kitty:
+#PROMPT_COMMAND+='; /usr/bin/env printf '\''\033[2 q'\'''
+# (moved to PS1 above)
 
 # load local:
 /usr/bin/env test -f ~/.bashrc_local && source ~/.bashrc_local
