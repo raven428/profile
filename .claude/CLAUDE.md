@@ -23,7 +23,7 @@ Cлова, которые произносятся с буквой `ё` долж
 
 ## Поиск в интернете
 
-Предпочтительный порядок MCP для поиска информации: snomcy, brightdata, tavily, zsearch. Предпочтительный порядок MCP для загрузки страниц: wripy, brightdata, tavily,zcrawl.
+Предпочтительный порядок MCP для поиска информации: snomcy, brightdata, tavily, zsearch. Предпочтительный порядок MCP для загрузки страниц: wripy, brightdata, tavily, zcrawl.
 
 ### В случае неудачи
 
