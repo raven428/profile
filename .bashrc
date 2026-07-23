@@ -11,7 +11,7 @@ echo $PATH | /usr/bin/env fgrep ~/go/bin >/dev/null || PATH=$PATH:~/go/bin
 echo $PATH | /usr/bin/env fgrep /sbin >/dev/null || PATH=$PATH:/sbin
 echo $PATH | /usr/bin/env fgrep /usr/sbin >/dev/null || PATH=$PATH:/usr/sbin
 echo $PATH | /usr/bin/env fgrep /usr/local/sbin >/dev/null || PATH=$PATH:/usr/local/sbin
-echo $PATH | /usr/bin/env fgrep /usr/local/go/bin >/dev/null || PATH=$PATH:/usr/local/go/bin
+echo $PATH | /usr/bin/env fgrep ~/.local/go/bin >/dev/null || PATH=$PATH:~/.local/go/bin
 
 # isilon onefs detector:
 /usr/bin/env uname | fgrep OneFS >/dev/null 2>&1 && unm=isi
