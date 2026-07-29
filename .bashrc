@@ -7,7 +7,6 @@
 
 # fill PATH:
 echo $PATH | /usr/bin/env fgrep ~/bin >/dev/null || PATH=$PATH:~/bin
-echo $PATH | /usr/bin/env fgrep ~/go/bin >/dev/null || PATH=$PATH:~/go/bin
 echo $PATH | /usr/bin/env fgrep /sbin >/dev/null || PATH=$PATH:/sbin
 echo $PATH | /usr/bin/env fgrep /usr/sbin >/dev/null || PATH=$PATH:/usr/sbin
 echo $PATH | /usr/bin/env fgrep /usr/local/sbin >/dev/null || PATH=$PATH:/usr/local/sbin
