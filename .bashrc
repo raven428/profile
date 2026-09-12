@@ -6,7 +6,7 @@
 /usr/bin/env test -f /etc/bashrc && source /etc/bashrc
 
 # fill PATH:
-echo $PATH | /usr/bin/env fgrep ~/bin >/dev/null || PATH=$PATH:~/bin
+echo $PATH | /usr/bin/env fgrep ~/.local/bin >/dev/null || PATH=$PATH:~/.local/bin
 echo $PATH | /usr/bin/env fgrep /sbin >/dev/null || PATH=$PATH:/sbin
 echo $PATH | /usr/bin/env fgrep /usr/sbin >/dev/null || PATH=$PATH:/usr/sbin
 echo $PATH | /usr/bin/env fgrep /usr/local/sbin >/dev/null || PATH=$PATH:/usr/local/sbin
