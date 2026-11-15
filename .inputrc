@@ -1,6 +1,4 @@
-#
-# $Id: .inputrc,v 1.3 2021/10/06 17:44:13 raven Exp $
-#
+# cspell:ignore cpan inputrc
 # bash
 "\e[3~": delete-char
 "\e[4~": end-of-line

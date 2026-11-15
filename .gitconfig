@@ -1,32 +1,35 @@
 [core]
- excludesFile = ~/.gitignore
+# cspell:ignore dmisu gpgsign reflog reflogs signingkey ntgi dnafk
+excludesFile = ~/.gitignore
 [user]
- email = root@localhost
- name = root
- signingkey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBkmQtd5gEcDffbVVJDPy+23NTGI+6tDnafk7N1l1dfB dmisu-ed25519-main"
+email = root@localhost
+name = root
+signingkey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBkmQtd5gEcDffbVVJDPy+\
+23NTGI+6tDnafk7N1l1dfB dmisu-ed25519-main"
 [push]
- # https://stackoverflow.com/questions/820178
- default = current
+# https://stackoverflow.com/questions/820178
+default = current
 [pull]
- rebase = true
+rebase = true
 [commit]
- gpgsign = true
+gpgsign = true
 [tag]
- gpgSign = true
+gpgSign = true
 [log]
- showSignature = false
+showSignature = false
 [color]
- ui = always
- status = always
+ui = always
+status = always
 [pager]
- status = true
+status = true
 [gpg]
- format = ssh
+format = ssh
 [alias]
- lost = !git log --no-walk --pretty=format:'%h %ad %s' --date=format:'%Y-%m-%dT%H:%M' $(git fsck --unreachable --no-reflogs | grep commit | awk '{print $3}')
+lost = "!git log --no-walk --pretty=format:'%h %ad %s' --date=format:'%Y-%m-%dT%H:%M' \
+$(git fsck --unreachable --no-reflogs | grep commit | awk '{print $3}')"
 #[url "git@github.com:"]
 # insteadOf = https://github.com/
 [gc]
- pruneExpire = never
- reflogExpire = never
- reflogExpireUnreachable = never
+pruneExpire = never
+reflogExpire = never
+reflogExpireUnreachable = never

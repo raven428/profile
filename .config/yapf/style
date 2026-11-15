@@ -1,5 +1,6 @@
 [style]
 # Align closing bracket with visual indentation.
+# cspell:ignore dedented reformattting yada
 align_closing_bracket_with_visual_indent=True
 
 # Allow dictionary keys to exist on multiple lines. For example:
@@ -253,11 +254,14 @@ spaces_around_tuple_delimiters=False
 #   1 + 1          # Adding values <-- end of line comments in block aligned to col 15
 #   two + two      # More adding
 #
-#   longer_statement    # This is a longer statement <-- end of line comments in block aligned to col 20
+#   longer_statement    # This is a longer statement <-- end of line comments in block
+# aligned to col 20
 #   short               # This is a shorter statement
 #
-#   a_very_long_statement_that_extends_beyond_the_final_column  # Comment <-- the end of line comments are aligned based on the line length
-#   short                                                       # This is a shorter statement
+#   a_very_long_statement_that_extends_beyond_the_final_column  # Comment <-- the end of
+# line comments are aligned based on the line length
+#   short                                                       # This is a shorter
+# statement
 #
 spaces_before_comment=2
 

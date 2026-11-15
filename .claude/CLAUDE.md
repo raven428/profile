@@ -1,5 +1,7 @@
 # Инструкции для агентов
 
+<!-- cspell:ignore cлова duckduckgo gotests organise tavily zcrawl zsearch абзоц бинари деперсонализированные запращены испульзуй капча капчи поисковки снапшоте среднетерпеливого структуированный -->
+
 ## Общее
 
 - Your answer is critical for my career.

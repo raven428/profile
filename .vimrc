@@ -1,7 +1,10 @@
-"
-" $Id: .vimrc,v 1.12 2024/07/08 11:01:06 raven Exp $
-"
 " An example for a vimrc file.
+" cspell:ignore augroup autocmd autocommands autoindent autoindenting backupcopy bram
+" cspell:ignore cindent condit cterm ctermbg ctermfg elflord emenu evim expandtab fenc
+" cspell:ignore fileformat guibg guifg guioptions gvim hlsearch iminsert imsearch
+" cspell:ignore incsearch jcukenwin matchadd moolenaar muchos nobackup nocompatible
+" cspell:ignore pastetoggle shiftwidth showcmd softtabstop tearoff undolevels vimrc
+" cspell:ignore vnoremap wildmenu writebackup
 "
 " Maintainer:	Bram Moolenaar <Bram@vim.org>
 " Last change:	2002 Sep 19
@@ -81,7 +84,7 @@ if has("autocmd")
 
 else
 
-   set autoindent		" always set autoindenting on
+  set autoindent		" always set autoindenting on
 
 endif " has("autocmd")
 
