@@ -40,10 +40,10 @@ jobs:
           USE_LINTIGNORE: true
         run: |
           curl -fsL \
-          https://raw.githubusercontent.com/raven428/container-images/refs/heads/${{
+          https://raw.githubusercontent.com/megalomania428/container-images/refs/heads/${{
           env.BRA }}/sources/linters-ubuntu-22_04/check-dir.sh | bash
           curl -fsL \
-          https://raw.githubusercontent.com/raven428/container-images/refs/heads/${{
+          https://raw.githubusercontent.com/megalomania428/container-images/refs/heads/${{
           env.BRA }}/_shared/install/ansible/check-dir.sh | bash
   MegaLinter:
     name: MegaLinter

@@ -13,7 +13,7 @@ echo "$PATH" | /usr/bin/env fgrep /usr/local/sbin >/dev/null || PATH=$PATH:/usr/
 echo "$PATH" | /usr/bin/env fgrep ~/.local/go/bin >/dev/null || PATH=$PATH:~/.local/go/bin
 
 # isilon onefs detector:
-/usr/bin/env uname | grep -f OneFS >/dev/null 2>&1 && unm=isi
+/usr/bin/env uname | grep -F OneFS >/dev/null 2>&1 && unm=isi
 
 # fill colors:
 case $OSTYPE in
