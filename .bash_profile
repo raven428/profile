@@ -4,13 +4,19 @@
 test -f /etc/bashrc && source /etc/bashrc
 
 set_mux_env() {
+  # the link replaces the old one atomically by mv, without the GNU-only mv -T
+  local real link tmp
   if [[ -n "${SSH_AUTH_SOCK}" && -e "${SSH_AUTH_SOCK}" ]]; then
-    SSH_AUTH_SOCK_REAL="$(readlink -f "${SSH_AUTH_SOCK}")"
-    if [[ -S "${SSH_AUTH_SOCK_REAL}" ]]; then
-      SSH_AUTH_SOCK_NEW="${HOME}/.ssh/authsock-${HOSTNAME%%.*}"
-      /usr/bin/env rm -f "${SSH_AUTH_SOCK_NEW}"
-      /usr/bin/env ln -sf "${SSH_AUTH_SOCK_REAL}" "${SSH_AUTH_SOCK_NEW}"
-      export SSH_AUTH_SOCK="${SSH_AUTH_SOCK_NEW}"
+    real="$(command readlink -f -- "${SSH_AUTH_SOCK}")"
+    if [[ -S "${real}" ]]; then
+      link="${HOME}/.ssh/authsock-${HOSTNAME%%.*}"
+      tmp="${HOME}/.ssh/.authsock-${HOSTNAME%%.*}.$$.${RANDOM}"
+      if [[ ! -d "${link}" ]] && command ln -s -- "${real}" "${tmp}" &&
+        command mv -f -- "${tmp}" "${link}"; then
+        export SSH_AUTH_SOCK="${link}"
+      else
+        command rm -f -- "${tmp}"
+      fi
     fi
   fi
 }
@@ -52,3 +58,9 @@ fi
 
 #shellcheck disable=1090
 /usr/bin/env test -f ~/.bash_profile_local && source ~/.bash_profile_local
+
+# SSH agent of the VS Code window, sourced last to keep values set above
+#shellcheck disable=1090
+if [[ -r ~/.config/bash/ssh-agent-stable.sh ]]; then
+  source ~/.config/bash/ssh-agent-stable.sh
+fi
