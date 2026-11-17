@@ -4,9 +4,14 @@
 test -f /etc/bashrc && source /etc/bashrc
 
 set_mux_env() {
-  # stable SSH_AUTH_SOCK and DISPLAY from ~/.config/bash/ssh-agent-stable.sh
-  if declare -F ssa_mux_env >/dev/null; then
-    ssa_mux_env
+  if [[ -n "${SSH_AUTH_SOCK}" && -e "${SSH_AUTH_SOCK}" ]]; then
+    SSH_AUTH_SOCK_REAL="$(readlink -f "${SSH_AUTH_SOCK}")"
+    if [[ -S "${SSH_AUTH_SOCK_REAL}" ]]; then
+      SSH_AUTH_SOCK_NEW="${HOME}/.ssh/authsock-${HOSTNAME%%.*}"
+      /usr/bin/env rm -f "${SSH_AUTH_SOCK_NEW}"
+      /usr/bin/env ln -sf "${SSH_AUTH_SOCK_REAL}" "${SSH_AUTH_SOCK_NEW}"
+      export SSH_AUTH_SOCK="${SSH_AUTH_SOCK_NEW}"
+    fi
   fi
 }
 
@@ -47,9 +52,3 @@ fi
 
 #shellcheck disable=1090
 /usr/bin/env test -f ~/.bash_profile_local && source ~/.bash_profile_local
-
-# stable SSH_AUTH_SOCK and DISPLAY, sourced last to keep values set above
-#shellcheck disable=1090
-if [[ -r ~/.config/bash/ssh-agent-stable.sh ]]; then
-  source ~/.config/bash/ssh-agent-stable.sh
-fi
