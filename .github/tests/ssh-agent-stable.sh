@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # cspell:ignore authsock scrrr tmx keygen pids setsid SIGTTIN SHIMS SCREENDIR cmdline
-# cspell:ignore epochrealtime inode inodes uptime
+# cspell:ignore epochrealtime inode inodes uptime sigwinch winch
 # Scenarios for .config/bash/ssh-agent-stable.sh and set_mux_env in an isolated HOME,
 # VS Code server processes are emulated by a fake /proc tree.
 # shellcheck disable=SC2016
@@ -12,6 +12,7 @@ run=${tmp}/run
 pids=()
 failed=()
 passed=0
+fwd=''
 cleanup() {
   local pid
   for pid in "${pids[@]}"; do
@@ -19,6 +20,9 @@ cleanup() {
   done
   wait 2>/dev/null
   rm -rf -- "${tmp}"
+  if [[ -n ${fwd-} ]]; then
+    rm -rf -- "${fwd}"
+  fi
 }
 trap cleanup EXIT
 check() {
@@ -166,6 +170,9 @@ stamp() {
     printf '%s %s\n' "$((${EPOCHREALTIME/[.,]/} / 1000))" "${line}"
   done
 }
+# the command of the shell under test
+result_cmd='printf "RESULT:%s\n" "${SSH_AUTH_SOCK-}"'
+shell_cmd=${result_cmd}
 vscode_shell() {
   # $1: fake /proc root, $2: plain or login, $3: parent process type or none,
   # the rest: extra environment; sets result, said, last, noise, elapsed and gap (ms),
@@ -179,7 +186,7 @@ vscode_shell() {
   # stdout goes to the file, stderr to stamp through the pipe
   timeout -k 1 30 "${base[@]}" "SSH_AGENT_STABLE_PROC=${1}" TERM_PROGRAM=vscode \
     "${@:4}" sh "${tmp}/pty.sh" "${1}" "${3}" "${flags[@]}" \
-    -c 'printf "RESULT:%s\n" "${SSH_AUTH_SOCK-}"' </dev/null 2>&1 >"${tmp}/out" |
+    -c "${shell_cmd}" </dev/null 2>&1 >"${tmp}/out" |
     stamp >"${tmp}/err"
   elapsed=$(($(now_ms) - begin))
   # a shell that exits before the command gives a result that no scenario expects
@@ -198,7 +205,8 @@ vscode_shell() {
   fi
   # output that the profile prints without the logic is in the baseline
   noise=$({
-    grep -v '^RESULT:' "${tmp}/out"
+    grep -v -e '^RESULT:' -e '^TRAP:' -e '^TRAPS:' -e '^RC_AFTER:' -e '^REM_AFTER:' \
+      -e '^IFS_AFTER:' "${tmp}/out"
     grep -v '^ssh-agent-stable: ' "${tmp}/err.text"
   } | grep -v -e 'cannot set terminal process group' -e 'no job control in this shell' |
     grep -cvxF -f "${tmp}/baseline-${2}")
@@ -507,6 +515,372 @@ out=$("${base[@]}" "${login}" "SSH_AUTH_SOCK=${tmp}/a2.sock" \
   </dev/null 2>/dev/null | sed -n 's/^RESULT://p')
 check 'ssh login keeps its agent' "${tmp}/a2.sock" "${out}"
 check 'shell start does not create the link' 'none' "$(target)"
+# Reload Window: the trap of SIGWINCH moves the link of the old connection to the agent
+# of the new one; a forwarded agent lives in /tmp/ssh-XXXXXXXXXX like the one of sshd
+fwd=$(mktemp -d /tmp/ssh-XXXXXXXXXX)
+start_agent "${fwd}/agent.1"
+start_agent "${fwd}/agent.3"
+fresh=$(readlink -e "${fwd}/agent.1")
+fresh2=$(readlink -e "${fwd}/agent.3")
+RL_OLD=${run}/vscode-ssh-auth-sock-300
+RL_NEW=${run}/vscode-ssh-auth-sock-301
+RL_LATE=${run}/vscode-ssh-auth-sock-302
+RL_BAD=${run}/vscode-ssh-auth-sock-303
+RL_NEW2=${run}/vscode-ssh-auth-sock-304
+RL_FILE=${run}/vscode-ssh-auth-sock-305
+: >"${fwd}/agent.2"
+ln -s "${fresh}" "${RL_NEW}"
+ln -s "${fresh2}" "${RL_NEW2}"
+ln -s "${tmp}/a2.sock" "${RL_BAD}"
+ln -s "${fwd}/agent.2" "${RL_FILE}"
+# the shell under test marks that it is ready, waits for the go mark up to 5 seconds,
+# runs WINCH_EVAL, sends SIGWINCH to itself WINCH_TIMES times and reports the time
+# of the last trap in ms, the trap of SIGWINCH and SSH_AUTH_SOCK; WINCH_EVAL2 runs
+# before the second and the next signals; with WINCH_IFS the signal comes from outside
+# while a command of a function with that IFS runs, after a successful =~ and with
+# the status 3, and the state of the interrupted code is reported after the trap
+winch_cmd='sig_inside() {
+  local IFS=${WINCH_IFS}
+  [[ abc-123 =~ ^([a-z]+)-([0-9]+)$ ]]
+  { (sleep 0.1; kill -WINCH "${1}") & } 2>/dev/null
+  sh -c "sleep 0.3; exit 3"
+  printf "RC_AFTER:%s\n" "$?"
+  printf "REM_AFTER:%s|%s|%s\n" "${BASH_REMATCH[0]}" "${BASH_REMATCH[1]}" \
+    "${BASH_REMATCH[2]}"
+  printf "IFS_AFTER:%q\n" "${IFS}"
+}
+: >"${WINCH_DIR}/ready"
+for ((n = 0; n < 100; n++)); do
+  if [[ -e ${WINCH_DIR}/go ]]; then
+    break
+  fi
+  sleep 0.05
+done
+eval "${WINCH_EVAL-}"
+for ((n = 0; n < ${WINCH_TIMES:-1}; n++)); do
+  if [[ -n ${WINCH_GO2-} && ${n} -gt 0 ]]; then
+    for ((m = 0; m < 100; m++)); do
+      if [[ -e ${WINCH_DIR}/go2 ]]; then
+        break
+      fi
+      sleep 0.05
+    done
+  fi
+  if [[ ${n} -gt 0 ]]; then
+    eval "${WINCH_EVAL2-}"
+  fi
+  t0=${EPOCHREALTIME/[.,]/}
+  if [[ -n ${WINCH_IFS+x} ]]; then
+    sig_inside $$
+  else
+    kill -WINCH $$
+  fi
+  t1=${EPOCHREALTIME/[.,]/}
+  : >"${WINCH_DIR}/winch-sig${n}"
+done
+printf "TRAP:%s\n" "$(((${t1:-0} - ${t0:-0}) / 1000))"
+printf "TRAPS:%s\n" "$(trap -p WINCH)"
+printf "RESULT:%s\n" "${SSH_AUTH_SOCK-}"'
+winch_windows() {
+  # $1: name; window 1 with the link RL_OLD of a live old connection, window 2
+  fake_new "winch-${1}"
+  listen 9101 "${G1}"
+  child 5000011 110 extensionHost "${RL_OLD}" 9101
+  listen 9102 "${G2}"
+  child 5000012 120 extensionHost "${L2}" 9102
+  ln -sfn "${tmp}/a1.sock" "${RL_OLD}"
+}
+new_host() {
+  # $1: SSH_AUTH_SOCK of the new extension host of window 1, the old one is gone
+  rm -rf -- "${fake}/5000011"
+  listen 9111 "${G1}"
+  child 5000021 300 extensionHost "${1}" 9111
+}
+reload() {
+  # in the background: waits for the ready mark of the shell up to 10 seconds, runs $1,
+  # sets the go mark and runs $2
+  local i
+  for ((i = 0; i < 100; i++)); do
+    if [[ -e ${tmp}/ready ]]; then
+      break
+    fi
+    sleep 0.1
+  done
+  eval "${1}"
+  : >"${tmp}/go"
+  eval "${2}"
+}
+winch_run() {
+  # $1: command that changes the fake /proc before SIGWINCH, $2: command after the go
+  # mark, the rest: extra environment; sets trap_ms (the last trap) and traps
+  rm -f -- "${tmp}/ready" "${tmp}/go" "${tmp}/go2" "${tmp}/mid" \
+    "${tmp}"/winch-sig*
+  reload "${1}" "${2}" &
+  racer=$!
+  shell_cmd=${winch_cmd}
+  vscode_shell "${fake}" plain ptyHost "WINCH_DIR=${tmp}" "${@:3}"
+  shell_cmd=${result_cmd}
+  wait "${racer}"
+  trap_ms=$(sed -n 's/^TRAP://p' "${tmp}/out")
+  traps=$(sed -n 's/^TRAPS://p' "${tmp}/out")
+  check "${fake##*/}: the shell under test signals itself" 'yes' \
+    "$(if [[ -n ${trap_ms} ]]; then echo yes; else echo no; fi)"
+}
+# a resize: the extension host of the window is alive, the trap returns at once
+winch_windows resize
+winch_run : : "SSH_AUTH_SOCK=${RL_OLD}" "VSCODE_GIT_IPC_HANDLE=${G1}"
+check 'resize: the trap is set' "trap -- 'ssa_winch' SIGWINCH" "${traps}"
+check 'resize keeps the value' "${RL_OLD}" "${result}"
+check 'resize keeps the link' "${tmp}/a1.sock" "$(readlink "${RL_OLD}")"
+check 'resize: no messages' '0' "${said}"
+check 'resize: no other output' '0' "${noise}"
+check 'resize: the trap returns at once' 'yes' \
+  "$(if ((trap_ms < 1000)); then echo yes; else echo no; fi)"
+# reload: the old extension host is gone, the new one has the link of the new connection
+winch_windows reload
+winch_run "new_host ${RL_NEW}" : "SSH_AUTH_SOCK=${RL_OLD}" "VSCODE_GIT_IPC_HANDLE=${G1}"
+check 'reload keeps the value' "${RL_OLD}" "${result}"
+check 'reload moves the old link to the new agent' "${fresh}" "$(readlink "${RL_OLD}")"
+check 'reload keeps the new link' "${fresh}" "$(readlink "${RL_NEW}")"
+check 'reload keeps the link of another window' "${tmp}/a2.sock" "$(readlink "${L2}")"
+SSH_AUTH_SOCK=${RL_OLD} ssh-add -l >/dev/null 2>&1
+check 'reload: the old link reaches the new agent' '1' "$?"
+check 'reload: no messages' '0' "${said}"
+check 'reload: no other output' '0' "${noise}"
+check 'reload: no temporary names' '0' "$(compgen -G "${run}/*.winch.*" | wc -l)"
+# the new link appears a second after the signal, as ln of Remote SSH does
+winch_windows late
+rm -f -- "${RL_LATE}"
+winch_run "new_host ${RL_LATE}" "sleep 1; ln -s ${fresh} ${RL_LATE}" \
+  "SSH_AUTH_SOCK=${RL_OLD}" "VSCODE_GIT_IPC_HANDLE=${G1}"
+check 'late link: the old link is moved' "${fresh}" "$(readlink "${RL_OLD}")"
+check 'late link: no messages' '0' "${said}"
+check 'late link: waits for the link within 3 seconds' 'yes' \
+  "$(if ((trap_ms >= 500 && trap_ms < 3000)); then echo yes; else echo no; fi)"
+second_reload() {
+  # waits up to 10 seconds until the trap of the first signal has returned, keeps
+  # where the link RL_OLD points in mid and replaces the extension host of window 1
+  # once more
+  local i
+  for ((i = 0; i < 100; i++)); do
+    if [[ -e ${tmp}/winch-sig0 ]]; then
+      break
+    fi
+    sleep 0.1
+  done
+  readlink "${RL_OLD}" >"${tmp}/mid"
+  rm -rf -- "${fake}/5000021"
+  listen 9121 "${G1}"
+  child 5000031 400 extensionHost "${RL_NEW2}" 9121
+  : >"${tmp}/go2"
+}
+# a second reload of the same window moves the same link to the next connection
+winch_windows twice
+winch_run "new_host ${RL_NEW}" second_reload "SSH_AUTH_SOCK=${RL_OLD}" \
+  "VSCODE_GIT_IPC_HANDLE=${G1}" WINCH_TIMES=2 WINCH_GO2=1
+check 'twice: the first reload moves the link' "${fresh}" "$(cat "${tmp}/mid")"
+check 'twice: the second reload moves the link again' "${fresh2}" \
+  "$(readlink "${RL_OLD}")"
+check 'twice: no messages' '0' "${said}"
+check 'twice: no other output' '0' "${noise}"
+# a link of another window taken at the start is not moved, whether the extension
+# host of this window is known at the start or appears later
+winch_windows other-link
+winch_run "new_host ${RL_NEW}" : "SSH_AUTH_SOCK=${L2}" "VSCODE_GIT_IPC_HANDLE=${G1}"
+check 'other window link: the value is kept' "${L2}" "${result}"
+check 'other window link is not moved' "${tmp}/a2.sock" "$(readlink "${L2}")"
+check 'other window link: no messages' '0' "${said}"
+check 'other window link: no other output' '0' "${noise}"
+fake_new other-link-late
+listen 9102 "${G2}"
+child 5000012 120 extensionHost "${L2}" 9102
+winch_run 'listen 9111 "${G1}"; child 5000021 300 extensionHost "${RL_NEW}" 9111' : \
+  "SSH_AUTH_SOCK=${L2}" "VSCODE_GIT_IPC_HANDLE=${G1}"
+check 'other window link, late host: the value is kept' "${L2}" "${result}"
+check 'other window link, late host: not moved' "${tmp}/a2.sock" "$(readlink "${L2}")"
+check 'other window link, late host: no messages' '0' "${said}"
+# a link of another window to the same agent as the own link is not moved
+winch_windows shared-agent
+ln -sfn "${tmp}/a1.sock" "${L2}"
+winch_run "new_host ${RL_NEW}" : "SSH_AUTH_SOCK=${L2}" "VSCODE_GIT_IPC_HANDLE=${G1}"
+check 'shared agent: the value is kept' "${L2}" "${result}"
+check 'shared agent: the link is not moved' "${tmp}/a1.sock" "$(readlink "${L2}")"
+check 'shared agent: no messages' '0' "${said}"
+check 'shared agent: no other output' '0' "${noise}"
+ln -sfn "${tmp}/a2.sock" "${L2}"
+# the shell starts with the link of window 2 that leads to the agent of the host of
+# window 1, which appears later: neither the first nor the second reload moves it
+fake_new shared-agent-late
+listen 9102 "${G2}"
+child 5000012 120 extensionHost "${L2}" 9102
+ln -sfn "${fresh}" "${L2}"
+winch_run 'listen 9111 "${G1}"; child 5000021 300 extensionHost "${RL_NEW}" 9111' \
+  second_reload "SSH_AUTH_SOCK=${L2}" "VSCODE_GIT_IPC_HANDLE=${G1}" WINCH_TIMES=2 \
+  WINCH_GO2=1
+check 'shared agent, late host: the value is kept' "${L2}" "${result}"
+check 'shared agent, late host: the second reload keeps the link' "${fresh}" \
+  "$(readlink "${L2}")"
+check 'shared agent, late host: no messages' '0' "${said}"
+ln -sfn "${tmp}/a2.sock" "${L2}"
+blocking_host() {
+  # adds an extension host whose cmdline is a FIFO: any search of the children of
+  # server-main blocks on it until the writer opens it 2 seconds later or is cut by
+  # timeout; the pid of the writer is kept in writer.pid
+  child 5000022 310 extensionHost "${RL_NEW}" 9111
+  rm -f -- "${fake}/5000022/cmdline"
+  mkfifo "${fake}/5000022/cmdline"
+  timeout 5 bash -c 'sleep 2; : >"${1}"' _ "${fake}/5000022/cmdline" &
+  echo "$!" >"${tmp}/writer.pid"
+}
+bulky_sockets() {
+  # appends many foreign sockets to /proc/net/unix: any search of the git socket owner
+  # has to parse every line, one pass takes seconds
+  yes '0000000000000000: 00000002 00000000 00010000 0001 01 9999 /run/other.sock' |
+    head -n 200000 >>"${fake}/net/unix"
+}
+# a resize with a fresher extension host of the window that holds the git socket
+# does not move the link: the remembered host still runs; any search of the owner
+# besides the fast path would block on the FIFO and parse the bulky table of sockets
+winch_windows resize-fresher
+winch_run 'bulky_sockets; listen 9111 "${G1}";
+  child 5000021 300 extensionHost "${RL_NEW}" 9111; blocking_host' : \
+  "SSH_AUTH_SOCK=${RL_OLD}" "VSCODE_GIT_IPC_HANDLE=${G1}"
+kill "$(cat "${tmp}/writer.pid")" 2>/dev/null
+rm -f -- "${tmp}/writer.pid" "${fake}/5000022/cmdline" "${fake}/net/unix"
+check 'resize with a fresher host keeps the link' "${tmp}/a1.sock" \
+  "$(readlink "${RL_OLD}")"
+check 'resize with a fresher host: no messages' '0' "${said}"
+check 'resize with a fresher host: no other output' '0' "${noise}"
+check 'resize with a fresher host: the trap returns at once' 'yes' \
+  "$(if ((trap_ms < 1000)); then echo yes; else echo no; fi)"
+# Reload while SSH_AUTH_SOCK is switched to another agent: the link is not moved and
+# the host is not remembered, the first signal after the switch back moves it
+mid_go2() {
+  local i
+  for ((i = 0; i < 100; i++)); do
+    if [[ -e ${tmp}/winch-sig0 ]]; then
+      break
+    fi
+    sleep 0.1
+  done
+  readlink "${RL_OLD}" >"${tmp}/mid"
+  : >"${tmp}/go2"
+}
+winch_windows switched
+winch_run "new_host ${RL_NEW}" mid_go2 "SSH_AUTH_SOCK=${RL_OLD}" \
+  "VSCODE_GIT_IPC_HANDLE=${G1}" "WINCH_EVAL=SSH_AUTH_SOCK=${tmp}/a2.sock" \
+  "WINCH_EVAL2=SSH_AUTH_SOCK=${RL_OLD}" WINCH_TIMES=2 WINCH_GO2=1
+check 'switched value: the first reload keeps the link' "${tmp}/a1.sock" \
+  "$(cat "${tmp}/mid")"
+check 'switched value: the value is back' "${RL_OLD}" "${result}"
+check 'switched value: the next signal moves the link' "${fresh}" \
+  "$(readlink "${RL_OLD}")"
+check 'switched value: no messages' '0' "${said}"
+check 'switched value: no other output' '0' "${noise}"
+# the signal comes inside a function with another IFS after =~ and a failure: the
+# resize is quick and quiet, the reload moves the link, BASH_REMATCH, IFS and $?
+# of the interrupted code are the same
+interrupted_state() {
+  # $1: scenario name, $2: expected IFS as %q
+  check "${1}: \$? is kept" '3' "$(sed -n 's/^RC_AFTER://p' "${tmp}/out")"
+  check "${1}: BASH_REMATCH is kept" 'abc-123|abc|123' \
+    "$(sed -n 's/^REM_AFTER://p' "${tmp}/out")"
+  check "${1}: IFS is kept" "${2}" "$(sed -n 's/^IFS_AFTER://p' "${tmp}/out")"
+}
+nl=$'\n'
+k=0
+for ifs in ':' "${nl}"; do
+  k=$((k + 1))
+  name="IFS ${ifs/${nl}/newline}"
+  winch_windows "ifs-resize-${#ifs}${k}"
+  winch_run : : "SSH_AUTH_SOCK=${RL_OLD}" "VSCODE_GIT_IPC_HANDLE=${G1}" \
+    "WINCH_IFS=${ifs}"
+  check "resize, ${name}: the link is kept" "${tmp}/a1.sock" "$(readlink "${RL_OLD}")"
+  check "resize, ${name}: no messages" '0' "${said}"
+  check "resize, ${name}: no other output" '0' "${noise}"
+  check "resize, ${name}: the trap returns at once" 'yes' \
+    "$(if ((trap_ms < 1000)); then echo yes; else echo no; fi)"
+  interrupted_state "resize, ${name}" "$(printf '%q' "${ifs}")"
+  winch_windows "ifs-reload-${#ifs}${k}"
+  winch_run "new_host ${RL_NEW}" : "SSH_AUTH_SOCK=${RL_OLD}" \
+    "VSCODE_GIT_IPC_HANDLE=${G1}" "WINCH_IFS=${ifs}"
+  check "reload, ${name}: the link is moved" "${fresh}" "$(readlink "${RL_OLD}")"
+  check "reload, ${name}: no messages" '0' "${said}"
+  check "reload, ${name}: no other output" '0' "${noise}"
+  interrupted_state "reload, ${name}" "$(printf '%q' "${ifs}")"
+done
+# a temporary name left by a killed shell with the same pid does not break the move
+winch_windows leftover-name
+winch_run "new_host ${RL_NEW}" : "SSH_AUTH_SOCK=${RL_OLD}" \
+  "VSCODE_GIT_IPC_HANDLE=${G1}" \
+  'WINCH_EVAL=ln -s /nonexistent "${SSH_AUTH_SOCK}.winch.$$"'
+check 'leftover name: the link is moved' "${fresh}" "$(readlink "${RL_OLD}")"
+check 'leftover name: no messages' '0' "${said}"
+check 'leftover name: no other output' '0' "${noise}"
+check 'leftover name: no temporary names' '0' \
+  "$(compgen -G "${run}/*.winch.*" | wc -l)"
+# a target of the right form that is not a socket is not accepted: one message
+winch_windows regular-file
+winch_run "new_host ${RL_FILE}" : "SSH_AUTH_SOCK=${RL_OLD}" \
+  "VSCODE_GIT_IPC_HANDLE=${G1}"
+check 'regular file target keeps the link' "${tmp}/a1.sock" "$(readlink "${RL_OLD}")"
+check 'regular file target: one message' '1' "${said}"
+check 'regular file target: open a new terminal' 'yes' \
+  "$(if [[ ${last} == *'open a new terminal' ]]; then echo yes; else echo no; fi)"
+check 'regular file target: no other output' '0' "${noise}"
+# no agent of the new connection: one message, the next signal searches silently
+winch_windows fail
+winch_run "new_host ${RL_BAD}" : "SSH_AUTH_SOCK=${RL_OLD}" \
+  "VSCODE_GIT_IPC_HANDLE=${G1}" WINCH_TIMES=2
+check 'no fresh agent keeps the link' "${tmp}/a1.sock" "$(readlink "${RL_OLD}")"
+check 'no fresh agent: one message' '1' "${said}"
+check 'no fresh agent: open a new terminal' 'yes' \
+  "$(if [[ ${last} == *'open a new terminal' ]]; then echo yes; else echo no; fi)"
+check 'no fresh agent: no other output' '0' "${noise}"
+check 'no fresh agent: the next signal waits up to 3 seconds' 'yes' \
+  "$(if ((trap_ms >= 2000 && trap_ms < 3500)); then echo yes; else echo no; fi)"
+# a window without a git socket: no extension host is known, signals search silently
+winch_windows no-git
+winch_run : : "SSH_AUTH_SOCK=${RL_OLD}"
+check 'no git socket keeps the link' "${tmp}/a1.sock" "$(readlink "${RL_OLD}")"
+check 'no git socket: no messages' '0' "${said}"
+check 'no git socket: the search waits up to 3 seconds' 'yes' \
+  "$(if ((trap_ms >= 2000 && trap_ms < 3500)); then echo yes; else echo no; fi)"
+# SSH_AGENT_STABLE=off: no trap; set after the start: the trap does nothing
+winch_windows off
+winch_run "new_host ${RL_NEW}" : SSH_AGENT_STABLE=off "SSH_AUTH_SOCK=${RL_OLD}" \
+  "VSCODE_GIT_IPC_HANDLE=${G1}"
+check 'off: no trap' '' "${traps}"
+check 'off keeps the link' "${tmp}/a1.sock" "$(readlink "${RL_OLD}")"
+winch_windows off-later
+winch_run "new_host ${RL_NEW}" : 'WINCH_EVAL=SSH_AGENT_STABLE=off' \
+  "SSH_AUTH_SOCK=${RL_OLD}" "VSCODE_GIT_IPC_HANDLE=${G1}"
+check 'off after the start keeps the link' "${tmp}/a1.sock" "$(readlink "${RL_OLD}")"
+check 'off after the start: no messages' '0' "${said}"
+# a trap of SIGWINCH from the profile is kept
+printf "trap ':' WINCH\n" >"${home}/.bashrc_local"
+winch_windows foreign
+winch_run "new_host ${RL_NEW}" : "SSH_AUTH_SOCK=${RL_OLD}" "VSCODE_GIT_IPC_HANDLE=${G1}"
+rm -f -- "${home}/.bashrc_local"
+check 'foreign trap is kept' "trap -- ':' SIGWINCH" "${traps}"
+check 'foreign trap keeps the link' "${tmp}/a1.sock" "$(readlink "${RL_OLD}")"
+# an explicit value set after the start is not a link of Remote SSH: nothing is moved
+winch_windows explicit-later
+winch_run "new_host ${RL_NEW}" : "WINCH_EVAL=SSH_AUTH_SOCK=${tmp}/a2.sock" \
+  "SSH_AUTH_SOCK=${RL_OLD}" "VSCODE_GIT_IPC_HANDLE=${G1}"
+check 'explicit value after the start is kept' "${tmp}/a2.sock" "${result}"
+check 'explicit value after the start keeps the link' "${tmp}/a1.sock" \
+  "$(readlink "${RL_OLD}")"
+check 'explicit value after the start: no messages' '0' "${said}"
+# no clock: one search without waiting
+printf 'unset EPOCHREALTIME\n' >"${home}/.bashrc_local"
+winch_windows no-clock
+rm -f -- "${fake}/uptime"
+winch_run "new_host ${RL_BAD}" : "SSH_AUTH_SOCK=${RL_OLD}" "VSCODE_GIT_IPC_HANDLE=${G1}"
+rm -f -- "${home}/.bashrc_local"
+check 'no clock keeps the link' "${tmp}/a1.sock" "$(readlink "${RL_OLD}")"
+check 'no clock: one message' '1' "${said}"
+ready 'no clock: no waiting' 1500
 # tmx and scrrr from .bash_profile, scrrr from .bashrc
 mux() {
   # $1: tmx or scrrr, the rest: extra environment; sets out and calls
