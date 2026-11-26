@@ -137,3 +137,9 @@ fi
 
 #shellcheck disable=1090
 /usr/bin/env test -f ~/.bashrc_local && source ~/.bashrc_local
+
+# SSH agent of the VS Code window, sourced last to keep values set above
+#shellcheck disable=1090
+if [[ -r ~/.config/bash/ssh-agent-stable.sh ]]; then
+  source ~/.config/bash/ssh-agent-stable.sh
+fi
