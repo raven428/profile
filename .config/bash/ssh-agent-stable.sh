@@ -428,10 +428,22 @@ ssa_foreign() {
   done
   return 1
 }
+ssa_young() {
+  # $1: /proc root; one of the extension hosts in hosts of the caller is younger than
+  # 15 seconds; an unknown age counts as old
+  local pid up ssa_ppid ssa_start
+  ssa_uptime up || return 1
+  for pid in "${hosts[@]}"; do
+    if ssa_stat "${1}/${pid}/stat" && ((up - ssa_start < 1500)); then
+      return 0
+    fi
+  done
+  return 1
+}
 ssa_heal() {
   # sets ssa_result of ssa_winch to the outcome, see ssa_winch
   local proc=${SSH_AGENT_STABLE_PROC:-/proc} dir=${ssa_link%/*} server pid sock
-  local own own_start fresh up young=0 moved_start='' moved_fresh='' deadline
+  local own own_start fresh up young=0 moved_start='' moved_fresh='' deadline found
   local ssa_ppid
   local ssa_start ssa_last='' ssa_spent=0
   local IFS=$' \t\n'
@@ -454,7 +466,29 @@ ssa_heal() {
     fi
   done
   ssa_result=no-host
-  ssa_find "${proc}" || return 0
+  # the git extension of a new extension host opens its socket up to a few seconds after
+  # Reload Window sends the signal: while a host is younger than 15 seconds the window
+  # is awaited up to 10 seconds, one check without a clock; the waiting counts in the
+  # 10 seconds of the host found, a resize after a failure heals the terminal
+  if ! ssa_find "${proc}"; then
+    ssa_young "${proc}" || return 0
+    ssa_tick
+    [[ -n ${ssa_last} ]] || return 0
+    found=${ssa_spent}
+    while :; do
+      if ! ssa_pause $((found + 9900000)) 200000; then
+        if ! ssa_settled "${proc}" "${server}"; then
+          builtin printf 'ssh-agent-stable: no VS Code window after reload:' >&2
+          builtin printf ' open a new terminal or resize current\n' >&2
+        fi
+        return 0
+      fi
+      if ssa_look "${proc}" "${server}"; then
+        break
+      fi
+    done
+    spent_of[${own_start}]=${found}
+  fi
   # the link of another window, e.g. taken at the start before the extension host of
   # this window opened the git socket, is not moved and nothing is awaited for it
   ssa_result=foreign
@@ -547,16 +581,18 @@ ssa_winch() {
   # DEBUG trap inherited with set -T: its forks would run before every command here.
   # Limits:
   # - Reload after a lost connection gives the window a new storage <id>-1 and another
-  #   git socket: the window is not found, the terminal is not healed, the handler
-  #   quits silently; another sign of the window is needed for it;
+  #   git socket: the window is not found, the terminal is not healed, the handler of
+  #   a young extension host waits 10 seconds for nothing and prints a message, other
+  #   handlers quit silently; another sign of the window is needed for it;
   # - a signal that comes when the extension host is older than 15 seconds and its <N>
   #   is not linked yet (a very slow reload) does not wait: the next signal heals;
   # - a terminal with a link dead for good takes the full path with forks on every
   #   resize, in the background, the prompt does not wait;
   # - a reconnection without a reload is healed only by a signal after it, unverified.
-  # The outcome for SSH_AGENT_STABLE_DONE, one line per handler: off, fast, no-host,
-  # foreign, stale (no agent of an old host, no waiting), timeout (no agent of a young
-  # host after the waiting), bad-dir, not-link, same, moved, created or failed.
+  # The outcome for SSH_AGENT_STABLE_DONE, one line per handler: off, fast, no-host (no
+  # host of the window, after the waiting if a host is young), foreign, stale (no agent
+  # of an old host, no waiting), timeout (no agent of a young host after the waiting),
+  # bad-dir, not-link, same, moved, created or failed.
   local ssa_result=''
   # the copy has the options of the shell: no globs that fail or vanish, no case-blind
   # comparisons, no stop on errors or unset variables, no inherited ERR and RETURN

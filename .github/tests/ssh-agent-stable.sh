@@ -1010,15 +1010,42 @@ kept 'old host without agent'
 silent 'old host without agent'
 soon 'old host without agent'
 # the new extension host does not hold the git socket of the terminal: the window is
-# not found, the handler quits
+# not found, the handler of an old host quits at once
 winch_windows no-host
 host_lost='rm -rf -- "${fake}/5000011"
-child 5000021 "${young}" extensionHost "${RL_NEW}"'
+child 5000021 "${aged}" extensionHost "${RL_NEW}"'
 winch_run "${host_lost}" : "SSH_AUTH_SOCK=${RL_OLD}" "VSCODE_GIT_IPC_HANDLE=${G1}"
 check 'no host of the window: no-host' 'no-host' "${results}"
 kept 'no host of the window'
 silent 'no host of the window'
 soon 'no host of the window'
+# a young host is awaited up to 10 seconds, then one message
+winch_windows no-host-young
+host_lost='rm -rf -- "${fake}/5000011"
+child 5000021 "${young}" extensionHost "${RL_NEW}"'
+winch_run "${host_lost}" : "SSH_AUTH_SOCK=${RL_OLD}" "VSCODE_GIT_IPC_HANDLE=${G1}"
+check 'no young host of the window: no-host' 'no-host' "${results}"
+kept 'no young host of the window'
+check 'no young host of the window: one message' '1' "${said}"
+hint='open a new terminal or resize current'
+check "no young host of the window: ${hint}" 'yes' \
+  "$(if [[ ${last} == *"${hint}" ]]; then echo yes; else echo no; fi)"
+check 'no young host of the window: no other output' '0' "${noise}"
+check 'no young host of the window: waits up to 10 seconds' 'yes' \
+  "$(if ((done_ms >= 9000 && done_ms < 11500)); then echo yes; else echo no; fi)"
+# the git extension of the new extension host opens its socket a second after the
+# signal: the handler waits for the window quietly
+winch_windows git-after-signal
+host_lost='rm -rf -- "${fake}/5000011"
+child 5000021 "${young}" extensionHost "${RL_NEW}"'
+git_late='sleep 1; listen 9111 "${G1}"; ln -s "socket:[9111]" "${fake}/5000021/fd/30"'
+winch_run "${host_lost}" "${git_late}" "SSH_AUTH_SOCK=${RL_OLD}" \
+  "VSCODE_GIT_IPC_HANDLE=${G1}"
+check 'git socket after the signal: moved' 'moved' "${results}"
+moved_to 'git socket after the signal' "${fresh}"
+silent 'git socket after the signal'
+check 'git socket after the signal: the handler waits for it' 'yes' \
+  "$(if ((done_ms >= 500 && done_ms < 9000)); then echo yes; else echo no; fi)"
 # the shell starts before the extension host of its window opens the git socket and
 # sees no resize before the reload: the reload moves its link
 winch_windows late-owner late
